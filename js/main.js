@@ -350,21 +350,35 @@ function initIntro(onReady) {
     });
   }
 
+  let chapterPreloadStarted = false;
+  function startChapterPreload() {
+    if (chapterPreloadStarted) return;
+    chapterPreloadStarted = true;
+    videos.forEach((video) => {
+      video.preload = "auto";
+      video.load();
+    });
+  }
+
   videos.forEach((video, i) => {
-    video.preload = "auto";
+    video.preload = "metadata";
     video.src = chapterEls[i].dataset.src;
     const markDone = () => { chaptersDone++; maybeReveal(); };
     video.addEventListener("canplaythrough", markDone, { once: true });
     video.addEventListener("error", markDone, { once: true });
-    video.load();
   });
 
+  // Wait until the intro video is actually decoding before competing with it
+  // for bandwidth/decode resources — on lower-memory devices, loading three
+  // full videos at once can stall or error out the intro itself.
+  introVideo.addEventListener("playing", startChapterPreload, { once: true });
   introVideo.addEventListener("ended", () => { introEnded = true; maybeReveal(); }, { once: true });
-  introVideo.addEventListener("error", () => { introEnded = true; maybeReveal(); }, { once: true });
-  introVideo.play().catch(() => { introEnded = true; maybeReveal(); });
+  introVideo.addEventListener("error", () => { introEnded = true; startChapterPreload(); maybeReveal(); }, { once: true });
+  introVideo.play().catch(() => { introEnded = true; startChapterPreload(); maybeReveal(); });
 
   setTimeout(() => {
     introEnded = true;
+    startChapterPreload();
     chaptersDone = videos.length;
     maybeReveal();
   }, 20000);
