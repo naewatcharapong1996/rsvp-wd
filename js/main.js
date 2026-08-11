@@ -6,11 +6,13 @@ const CONFIG = {
   CHAPTERS_SCROLL_LENGTH: "+=400%",
   SCRUB_SMOOTHING: 0.3,
   FADE_TO_INK_START: 0.72,
+  SCROLL_CUE_SHOW_DELAY: 500,
+  SCROLL_CUE_MIN_VISIBLE: 4000,
 };
 
 const clamp = gsap.utils.clamp(0, 1);
 
-function initChapters() {
+function initChapters(onScrollStart) {
   const chapterEls = Array.from(document.querySelectorAll(".chapter"));
   const fadeToInk = document.getElementById("chaptersFadeToInk");
   const N = chapterEls.length;
@@ -69,6 +71,8 @@ function initChapters() {
   function render(progress) {
     const p = progress * N;
 
+    if (progress > 0.001 && onScrollStart) { onScrollStart(); onScrollStart = null; }
+
     chapters.forEach((c, i) => {
       const localProgress = clamp(p - i);
       if (c.duration > 0) {
@@ -106,7 +110,7 @@ function initChapters() {
   return () => trigger.kill();
 }
 
-function initChaptersStatic() {
+function initChaptersStatic(onScrollStart) {
   const chapterEls = Array.from(document.querySelectorAll(".chapter"));
   const fadeToInk = document.getElementById("chaptersFadeToInk");
   const N = chapterEls.length;
@@ -143,6 +147,7 @@ function initChaptersStatic() {
     fastScrollEnd: true,
     scrub: CONFIG.SCRUB_SMOOTHING,
     onUpdate: (self) => {
+      if (self.progress > 0.001 && onScrollStart) { onScrollStart(); onScrollStart = null; }
       const p = self.progress * N;
       chapterEls.forEach((el, i) => { el.style.opacity = opacityFor(i, p); });
       fadeToInk.style.opacity = fadeToInkFor(p);
@@ -155,17 +160,27 @@ function initChaptersStatic() {
 function initScrollCue(animate) {
   const cue = document.getElementById("scrollCue");
   let dismissed = false;
-  const dismiss = () => {
-    if (dismissed) return;
+  let shownAt = 0;
+  let minVisibleTimer = null;
+
+  const reallyDismiss = () => {
     dismissed = true;
     cue.classList.remove("is-visible");
   };
 
-  const showTimer = setTimeout(() => {
-    if (!dismissed) cue.classList.add("is-visible");
-  }, 900);
+  const dismiss = () => {
+    if (dismissed || minVisibleTimer) return;
+    const remaining = CONFIG.SCROLL_CUE_MIN_VISIBLE - (Date.now() - shownAt);
+    if (remaining > 0) minVisibleTimer = setTimeout(reallyDismiss, remaining);
+    else reallyDismiss();
+  };
 
-  ScrollTrigger.addEventListener("scrollStart", dismiss);
+  const showTimer = setTimeout(() => {
+    if (!dismissed) {
+      cue.classList.add("is-visible");
+      shownAt = Date.now();
+    }
+  }, CONFIG.SCROLL_CUE_SHOW_DELAY);
 
   let bounce = null;
   if (animate) {
@@ -176,30 +191,14 @@ function initScrollCue(animate) {
     );
   }
 
-  return () => {
-    clearTimeout(showTimer);
-    ScrollTrigger.removeEventListener("scrollStart", dismiss);
-    if (bounce) bounce.kill();
-  };
-}
-
-function initFinaleRing() {
-  const ringStroke = document.getElementById("finaleRingStroke");
-  const ringLen = ringStroke.getTotalLength();
-
-  gsap.set(ringStroke, { strokeDasharray: ringLen, strokeDashoffset: ringLen });
-
-  const trigger = ScrollTrigger.create({
-    trigger: "#finale",
-    start: "top 75%",
-    end: "top 15%",
-    scrub: true,
-    onUpdate: (self) => {
-      ringStroke.style.strokeDashoffset = ringLen * (1 - self.progress);
+  return {
+    dismiss,
+    destroy: () => {
+      clearTimeout(showTimer);
+      clearTimeout(minVisibleTimer);
+      if (bounce) bounce.kill();
     },
-  });
-
-  return () => trigger.kill();
+  };
 }
 
 function initFinaleReveal() {
@@ -248,26 +247,24 @@ function boot() {
   const mm = gsap.matchMedia();
 
   mm.add("(prefers-reduced-motion: no-preference)", () => {
-    const cleanupChapters = initChapters();
-    const cleanupCue = initScrollCue(true);
-    const cleanupRing = initFinaleRing();
+    const cue = initScrollCue(true);
+    const cleanupChapters = initChapters(cue.dismiss);
     const cleanupReveal = initFinaleReveal();
 
     return () => {
       cleanupChapters();
-      cleanupCue();
-      cleanupRing();
+      cue.destroy();
       cleanupReveal();
     };
   });
 
   mm.add("(prefers-reduced-motion: reduce)", () => {
-    const cleanupChapters = initChaptersStatic();
-    const cleanupCue = initScrollCue(false);
+    const cue = initScrollCue(false);
+    const cleanupChapters = initChaptersStatic(cue.dismiss);
 
     return () => {
       cleanupChapters();
-      cleanupCue();
+      cue.destroy();
     };
   });
 
@@ -280,6 +277,7 @@ function initIntro(onReady) {
   const intro = document.getElementById("intro");
   const introVideo = document.getElementById("introVideo");
   const ripple = document.getElementById("introRipple");
+  const tap = document.getElementById("introTap");
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   const chapterEls = [
@@ -292,6 +290,14 @@ function initIntro(onReady) {
   let introEnded = false;
   let chaptersDone = 0;
 
+  const tapBounce = reduceMotion ? null : gsap.to(tap, {
+    y: -12,
+    duration: 0.7,
+    repeat: -1,
+    yoyo: true,
+    ease: "sine.inOut",
+  });
+
   function maybeReveal() {
     if (settled || !introEnded || chaptersDone < videos.length) return;
     reveal();
@@ -299,6 +305,9 @@ function initIntro(onReady) {
 
   function reveal() {
     settled = true;
+
+    if (tapBounce) tapBounce.kill();
+    gsap.to(tap, { autoAlpha: 0, duration: 0.35 });
 
     if (reduceMotion) {
       gsap.to(intro, {
