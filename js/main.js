@@ -3,7 +3,7 @@ gsap.registerPlugin(ScrollTrigger);
 const CONFIG = {
   RSVP_URL: "https://forms.gle/REPLACE_WITH_REAL_FORM_LINK",
   CHAPTER_OVERLAP: 0.175,
-  CHAPTERS_SCROLL_LENGTH: "+=400%",
+  LAST_CHAPTER_HOLD: 0.75, // extra scroll (in chapter-units) the last chapter lingers on its final frame before fading to ink — roughly +3s of scrolling
   SCRUB_SMOOTHING: 0.3,
   FADE_TO_INK_START: 0.72,
   SCROLL_CUE_SHOW_DELAY: 500,
@@ -17,6 +17,13 @@ function initChapters(onScrollStart) {
   const fadeToInk = document.getElementById("chaptersFadeToInk");
   const N = chapterEls.length;
   const HALF_OVERLAP = CONFIG.CHAPTER_OVERLAP / 2;
+
+  // Every chapter is 1 normalized unit of scroll, except the last, which gets
+  // extra units so it holds on its final frame before fading to ink.
+  const weights = chapterEls.map((_, i) => (i === N - 1 ? 1 + CONFIG.LAST_CHAPTER_HOLD : 1));
+  const boundaries = [0];
+  weights.forEach((w) => boundaries.push(boundaries[boundaries.length - 1] + w));
+  const TOTAL_UNITS = boundaries[N];
 
   const chapters = chapterEls.map((el, i) => ({
     index: i,
@@ -46,7 +53,7 @@ function initChapters(onScrollStart) {
   }
 
   function opacityFor(i, p) {
-    const start = i, end = i + 1;
+    const start = boundaries[i], end = boundaries[i + 1];
     let o = 1;
 
     if (i > 0) {
@@ -63,18 +70,18 @@ function initChapters(onScrollStart) {
   }
 
   function fadeToInkFor(p) {
-    const lastLocal = clamp(p - (N - 1));
+    const lastLocal = clamp((p - boundaries[N - 1]) / weights[N - 1]);
     const start = CONFIG.FADE_TO_INK_START;
     return lastLocal <= start ? 0 : clamp((lastLocal - start) / (1 - start));
   }
 
   function render(progress) {
-    const p = progress * N;
+    const p = progress * TOTAL_UNITS;
 
     if (progress > 0.001 && onScrollStart) { onScrollStart(); onScrollStart = null; }
 
     chapters.forEach((c, i) => {
-      const localProgress = clamp(p - i);
+      const localProgress = clamp(p - boundaries[i]);
       if (c.duration > 0) {
         const t = localProgress * c.duration;
         if (Math.abs(c.video.currentTime - t) > 0.01) c.video.currentTime = t;
@@ -99,7 +106,7 @@ function initChapters(onScrollStart) {
   const trigger = ScrollTrigger.create({
     trigger: "#chapters",
     start: "top top",
-    end: CONFIG.CHAPTERS_SCROLL_LENGTH,
+    end: `+=${TOTAL_UNITS * 100}%`,
     pin: true,
     anticipatePin: 1,
     fastScrollEnd: true,
@@ -116,8 +123,13 @@ function initChaptersStatic(onScrollStart) {
   const N = chapterEls.length;
   const HALF_OVERLAP = CONFIG.CHAPTER_OVERLAP / 2;
 
+  const weights = chapterEls.map((_, i) => (i === N - 1 ? 1 + CONFIG.LAST_CHAPTER_HOLD : 1));
+  const boundaries = [0];
+  weights.forEach((w) => boundaries.push(boundaries[boundaries.length - 1] + w));
+  const TOTAL_UNITS = boundaries[N];
+
   function opacityFor(i, p) {
-    const start = i, end = i + 1;
+    const start = boundaries[i], end = boundaries[i + 1];
     let o = 1;
     if (i > 0) {
       const inFrom = start - HALF_OVERLAP, inTo = start + HALF_OVERLAP;
@@ -133,7 +145,7 @@ function initChaptersStatic(onScrollStart) {
   }
 
   function fadeToInkFor(p) {
-    const lastLocal = clamp(p - (N - 1));
+    const lastLocal = clamp((p - boundaries[N - 1]) / weights[N - 1]);
     const start = CONFIG.FADE_TO_INK_START;
     return lastLocal <= start ? 0 : clamp((lastLocal - start) / (1 - start));
   }
@@ -141,14 +153,14 @@ function initChaptersStatic(onScrollStart) {
   const trigger = ScrollTrigger.create({
     trigger: "#chapters",
     start: "top top",
-    end: CONFIG.CHAPTERS_SCROLL_LENGTH,
+    end: `+=${TOTAL_UNITS * 100}%`,
     pin: true,
     anticipatePin: 1,
     fastScrollEnd: true,
     scrub: CONFIG.SCRUB_SMOOTHING,
     onUpdate: (self) => {
       if (self.progress > 0.001 && onScrollStart) { onScrollStart(); onScrollStart = null; }
-      const p = self.progress * N;
+      const p = self.progress * TOTAL_UNITS;
       chapterEls.forEach((el, i) => { el.style.opacity = opacityFor(i, p); });
       fadeToInk.style.opacity = fadeToInkFor(p);
     },
