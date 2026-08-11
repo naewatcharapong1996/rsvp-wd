@@ -1,0 +1,30 @@
+{
+  "name": "rsvp-wd",
+  "version": "1.0.0",
+  "description": "Ava & James — single-page, video-driven wedding invitation. Static site; GSAP is installed via npm and vendored into js/vendor so the deployed page has no runtime CDN dependency.",
+  "private": true,
+  "scripts": {
+    "vendor": "node scripts/vendor-gsap.js && node scripts/vendor-qrcode.js",
+    "postinstall": "node scripts/vendor-gsap.js && node scripts/vendor-qrcode.js",
+    "serve": "npx --yes serve . -l 5173"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/naewatcharapong1996/rsvp-wd.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/naewatcharapong1996/rsvp-wd/issues"
+  },
+  "homepage": "https://github.com/naewatcharapong1996/rsvp-wd#readme",
+  "dependencies": {
+    "gsap": "^3.15.0",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}

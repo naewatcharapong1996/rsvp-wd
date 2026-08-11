@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Maprang &amp; Nae — 28.11.2026</title>
+<meta name="description" content="Maprang &amp; Nae are getting married — 28.11.2026, Nakhon Nayok, Thailand.">
+<meta name="theme-color" content="#161d18">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="intro" id="intro">
+  <video class="intro__video" id="introVideo" muted playsinline preload="auto"
+         src="asset/Wedding_Scene_Illustration_FpmOyCY3.mp4"></video>
+  <span class="intro__ripple" id="introRipple"></span>
+</div>
+
+<h1 class="sr-only">Maprang &amp; Nae — 28.11.2026, Nakhon Nayok, Thailand</h1>
+
+<div class="scroll-cue" id="scrollCue" aria-hidden="true">
+  <span class="scroll-cue__label">Scroll</span>
+  <span class="scroll-cue__mouse"><span class="scroll-cue__dot"></span></span>
+</div>
+
+<audio id="bgAudio" src="audio/stargazing.mp3" loop preload="auto"></audio>
+
+<div class="music-bar" id="musicBar">
+  <button class="music-bar__btn" id="playPauseBtn" type="button" aria-label="Play music">
+    <svg class="music-bar__icon music-bar__icon--play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+    <svg class="music-bar__icon music-bar__icon--pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h3.2v14H7zm6.8 0H17v14h-3.2z"/></svg>
+  </button>
+
+  <span class="music-bar__bars" aria-hidden="true"><span></span><span></span><span></span></span>
+
+  <button class="music-bar__btn" id="muteBtn" type="button" aria-label="Mute music">
+    <svg class="music-bar__icon music-bar__icon--sound" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3 9.5v5h3.6L12 19V5L6.6 9.5z"/>
+      <path d="M15.3 8.3a4.9 4.9 0 010 7.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+    </svg>
+    <svg class="music-bar__icon music-bar__icon--muted" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3 9.5v5h3.6L12 19V5L6.6 9.5z"/>
+      <path d="M15 9.5l4.5 5M19.5 9.5l-4.5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+    </svg>
+  </button>
+</div>
+
+<main>
+
+  <section class="chapters" id="chapters">
+
+      <article class="chapter is-active" data-chapter="0"
+                data-src="asset/Living_Photo_Clips_A_couple_stands_back-to-back_the_man_in_a_navy.mp4">
+        <div class="chapter__poster chapter__poster--0" aria-hidden="true"></div>
+        <video class="chapter__video" muted playsinline preload="none"></video>
+        <div class="chapter__scrim"></div>
+      </article>
+
+      <article class="chapter" data-chapter="1"
+                data-src="asset/Living_Photo_Clips_A_man_in_a_dark_blue_suit_and_a_woman_in_a_white.mp4">
+        <div class="chapter__poster chapter__poster--1" aria-hidden="true"></div>
+        <video class="chapter__video" muted playsinline preload="none"></video>
+        <div class="chapter__scrim"></div>
+      </article>
+
+      <article class="chapter" data-chapter="2"
+                data-src="asset/Living_Photo_Clips_In_a_romantic_cinematic_style_a_man_in_a_dark.mp4">
+        <div class="chapter__poster chapter__poster--2" aria-hidden="true"></div>
+        <video class="chapter__video" muted playsinline preload="none"></video>
+        <div class="chapter__scrim"></div>
+      </article>
+
+      <article class="chapter" data-chapter="3"
+                data-src="asset/Living_Photo_Clips_In_a_romantic_cinematic_style_a_man_in_a_navy.mp4">
+        <div class="chapter__poster chapter__poster--3" aria-hidden="true"></div>
+        <video class="chapter__video" muted playsinline preload="none"></video>
+        <div class="chapter__scrim"></div>
+      </article>
+
+      <div class="chapters__fade-to-ink" id="chaptersFadeToInk" aria-hidden="true"></div>
+
+  </section>
+
+  <section class="finale" id="finale">
+    <div class="finale__intro">
+      <h2 class="finale__heading">You&rsquo;re Invited</h2>
+      <p class="finale__nickname">Maprang &amp; Nae</p>
+    </div>
+
+    <div class="finale__ring-wrap">
+      <svg class="finale__ring" id="finaleRing" viewBox="0 0 240 240" aria-hidden="true">
+        <circle class="finale__ring-track" cx="120" cy="120" r="98"/>
+        <circle class="finale__ring-stroke" id="finaleRingStroke" cx="120" cy="120" r="98"/>
+      </svg>
+
+      <div class="finale__card">
+        <div class="finale__qr" id="qrcode" role="img" aria-label="QR code linking to the RSVP form"></div>
+      </div>
+    </div>
+
+    <a class="finale__rsvp" id="rsvpButton" href="#" target="_blank" rel="noopener">RSVP →</a>
+
+    <div class="finale__signoff">
+      <p class="finale__date">28.11.2026</p>
+      <p class="finale__formal-names">Wipawa &amp; Watcharapong</p>
+    </div>
+  </section>
+
+</main>
+
+<script src="js/vendor/gsap.min.js"></script>
+<script src="js/vendor/ScrollTrigger.min.js"></script>
+<script src="js/vendor/qrcode.min.js"></script>
+
+<script src="js/main.js"></script>
+</body>
+</html>

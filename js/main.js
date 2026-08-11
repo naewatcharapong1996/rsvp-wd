@@ -1,0 +1,395 @@
+gsap.registerPlugin(ScrollTrigger);
+
+const CONFIG = {
+  RSVP_URL: "https://forms.gle/REPLACE_WITH_REAL_FORM_LINK",
+  CHAPTER_OVERLAP: 0.175,
+  CHAPTERS_SCROLL_LENGTH: "+=400%",
+  SCRUB_SMOOTHING: 0.3,
+  FADE_TO_INK_START: 0.72,
+};
+
+const clamp = gsap.utils.clamp(0, 1);
+
+function initChapters() {
+  const chapterEls = Array.from(document.querySelectorAll(".chapter"));
+  const fadeToInk = document.getElementById("chaptersFadeToInk");
+  const N = chapterEls.length;
+  const HALF_OVERLAP = CONFIG.CHAPTER_OVERLAP / 2;
+
+  const chapters = chapterEls.map((el, i) => ({
+    index: i,
+    el,
+    video: el.querySelector(".chapter__video"),
+    poster: el.querySelector(".chapter__poster"),
+    src: el.dataset.src,
+    duration: 0,
+    attached: false,
+  }));
+
+  function attach(c) {
+    if (!c || c.attached) return;
+    c.attached = true;
+
+    if (c.video.readyState >= 1) c.duration = c.video.duration || 0;
+    else c.video.addEventListener("loadedmetadata", () => { c.duration = c.video.duration || 0; }, { once: true });
+
+    if (c.video.readyState >= 2) c.poster.classList.add("is-loaded");
+    else c.video.addEventListener("loadeddata", () => c.poster.classList.add("is-loaded"), { once: true });
+
+    if (!c.video.src) {
+      c.video.preload = "metadata";
+      c.video.src = c.src;
+      c.video.load();
+    }
+  }
+
+  function opacityFor(i, p) {
+    const start = i, end = i + 1;
+    let o = 1;
+
+    if (i > 0) {
+      const inFrom = start - HALF_OVERLAP, inTo = start + HALF_OVERLAP;
+      if (p <= inFrom) return 0;
+      if (p < inTo) o = Math.min(o, (p - inFrom) / (inTo - inFrom));
+    }
+    if (i < N - 1) {
+      const outFrom = end - HALF_OVERLAP, outTo = end + HALF_OVERLAP;
+      if (p >= outTo) return 0;
+      if (p > outFrom) o = Math.min(o, 1 - (p - outFrom) / (outTo - outFrom));
+    }
+    return clamp(o);
+  }
+
+  function fadeToInkFor(p) {
+    const lastLocal = clamp(p - (N - 1));
+    const start = CONFIG.FADE_TO_INK_START;
+    return lastLocal <= start ? 0 : clamp((lastLocal - start) / (1 - start));
+  }
+
+  function render(progress) {
+    const p = progress * N;
+
+    chapters.forEach((c, i) => {
+      const localProgress = clamp(p - i);
+      if (c.duration > 0) {
+        const t = localProgress * c.duration;
+        if (Math.abs(c.video.currentTime - t) > 0.01) c.video.currentTime = t;
+      }
+
+      const o = opacityFor(i, p);
+      c.el.style.opacity = o;
+      c.el.classList.toggle("is-active", o > 0.02);
+    });
+
+    fadeToInk.style.opacity = fadeToInkFor(p);
+
+    const activeIdx = Math.min(N - 1, Math.max(0, Math.floor(p)));
+    attach(chapters[activeIdx]);
+    attach(chapters[activeIdx + 1]);
+  }
+
+  attach(chapters[0]);
+  attach(chapters[1]);
+  render(0);
+
+  const trigger = ScrollTrigger.create({
+    trigger: "#chapters",
+    start: "top top",
+    end: CONFIG.CHAPTERS_SCROLL_LENGTH,
+    pin: true,
+    anticipatePin: 1,
+    fastScrollEnd: true,
+    scrub: CONFIG.SCRUB_SMOOTHING,
+    onUpdate: (self) => render(self.progress),
+  });
+
+  return () => trigger.kill();
+}
+
+function initChaptersStatic() {
+  const chapterEls = Array.from(document.querySelectorAll(".chapter"));
+  const fadeToInk = document.getElementById("chaptersFadeToInk");
+  const N = chapterEls.length;
+  const HALF_OVERLAP = CONFIG.CHAPTER_OVERLAP / 2;
+
+  function opacityFor(i, p) {
+    const start = i, end = i + 1;
+    let o = 1;
+    if (i > 0) {
+      const inFrom = start - HALF_OVERLAP, inTo = start + HALF_OVERLAP;
+      if (p <= inFrom) return 0;
+      if (p < inTo) o = Math.min(o, (p - inFrom) / (inTo - inFrom));
+    }
+    if (i < N - 1) {
+      const outFrom = end - HALF_OVERLAP, outTo = end + HALF_OVERLAP;
+      if (p >= outTo) return 0;
+      if (p > outFrom) o = Math.min(o, 1 - (p - outFrom) / (outTo - outFrom));
+    }
+    return clamp(o);
+  }
+
+  function fadeToInkFor(p) {
+    const lastLocal = clamp(p - (N - 1));
+    const start = CONFIG.FADE_TO_INK_START;
+    return lastLocal <= start ? 0 : clamp((lastLocal - start) / (1 - start));
+  }
+
+  const trigger = ScrollTrigger.create({
+    trigger: "#chapters",
+    start: "top top",
+    end: CONFIG.CHAPTERS_SCROLL_LENGTH,
+    pin: true,
+    anticipatePin: 1,
+    fastScrollEnd: true,
+    scrub: CONFIG.SCRUB_SMOOTHING,
+    onUpdate: (self) => {
+      const p = self.progress * N;
+      chapterEls.forEach((el, i) => { el.style.opacity = opacityFor(i, p); });
+      fadeToInk.style.opacity = fadeToInkFor(p);
+    },
+  });
+
+  return () => trigger.kill();
+}
+
+function initScrollCue(animate) {
+  const cue = document.getElementById("scrollCue");
+  let dismissed = false;
+  const dismiss = () => {
+    if (dismissed) return;
+    dismissed = true;
+    cue.classList.remove("is-visible");
+  };
+
+  const showTimer = setTimeout(() => {
+    if (!dismissed) cue.classList.add("is-visible");
+  }, 900);
+
+  ScrollTrigger.addEventListener("scrollStart", dismiss);
+
+  let bounce = null;
+  if (animate) {
+    bounce = gsap.fromTo(
+      ".scroll-cue__dot",
+      { y: 0, autoAlpha: 1 },
+      { y: 14, autoAlpha: 0, duration: 1, repeat: -1, repeatDelay: 0.3, ease: "power1.in" }
+    );
+  }
+
+  return () => {
+    clearTimeout(showTimer);
+    ScrollTrigger.removeEventListener("scrollStart", dismiss);
+    if (bounce) bounce.kill();
+  };
+}
+
+function initFinaleRing() {
+  const ringStroke = document.getElementById("finaleRingStroke");
+  const ringLen = ringStroke.getTotalLength();
+
+  gsap.set(ringStroke, { strokeDasharray: ringLen, strokeDashoffset: ringLen });
+
+  const trigger = ScrollTrigger.create({
+    trigger: "#finale",
+    start: "top 75%",
+    end: "top 15%",
+    scrub: true,
+    onUpdate: (self) => {
+      ringStroke.style.strokeDashoffset = ringLen * (1 - self.progress);
+    },
+  });
+
+  return () => trigger.kill();
+}
+
+function initFinaleReveal() {
+  const targets = [
+    document.querySelector(".finale__intro"),
+    document.querySelector(".finale__ring-wrap"),
+    document.getElementById("rsvpButton"),
+    document.querySelector(".finale__signoff"),
+  ];
+
+  gsap.set(targets, { autoAlpha: 0, y: 28 });
+
+  const tl = gsap.timeline({
+    scrollTrigger: {
+      trigger: "#finale",
+      start: "top 85%",
+      end: "top 40%",
+      scrub: true,
+    },
+  }).to(targets, { autoAlpha: 1, y: 0, stagger: 0.15, ease: "power1.out" });
+
+  return () => tl.scrollTrigger.kill();
+}
+
+function initRsvp() {
+  document.getElementById("rsvpButton").href = CONFIG.RSVP_URL;
+
+  if (!window.QRCode) return;
+  const host = document.getElementById("qrcode");
+  const canvas = document.createElement("canvas");
+  host.appendChild(canvas);
+  QRCode.toCanvas(canvas, CONFIG.RSVP_URL, {
+    width: 400,
+    margin: 1,
+    color: { dark: "#161d18", light: "#f4ecdd" },
+  }, (err) => {
+    if (err) { console.error("QR render failed:", err); return; }
+    canvas.style.width = "100%";
+    canvas.style.height = "100%";
+  });
+}
+
+function boot() {
+  ScrollTrigger.normalizeScroll(true);
+
+  const mm = gsap.matchMedia();
+
+  mm.add("(prefers-reduced-motion: no-preference)", () => {
+    const cleanupChapters = initChapters();
+    const cleanupCue = initScrollCue(true);
+    const cleanupRing = initFinaleRing();
+    const cleanupReveal = initFinaleReveal();
+
+    return () => {
+      cleanupChapters();
+      cleanupCue();
+      cleanupRing();
+      cleanupReveal();
+    };
+  });
+
+  mm.add("(prefers-reduced-motion: reduce)", () => {
+    const cleanupChapters = initChaptersStatic();
+    const cleanupCue = initScrollCue(false);
+
+    return () => {
+      cleanupChapters();
+      cleanupCue();
+    };
+  });
+
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => ScrollTrigger.refresh());
+  }
+}
+
+function initIntro(onReady) {
+  const intro = document.getElementById("intro");
+  const introVideo = document.getElementById("introVideo");
+  const ripple = document.getElementById("introRipple");
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const chapterEls = [
+    document.querySelector('.chapter[data-chapter="0"]'),
+    document.querySelector('.chapter[data-chapter="1"]'),
+  ];
+  const videos = chapterEls.map((el) => el.querySelector(".chapter__video"));
+
+  let settled = false;
+  let introEnded = false;
+  let chaptersDone = 0;
+
+  function maybeReveal() {
+    if (settled || !introEnded || chaptersDone < videos.length) return;
+    reveal();
+  }
+
+  function reveal() {
+    settled = true;
+
+    if (reduceMotion) {
+      gsap.to(intro, {
+        autoAlpha: 0,
+        duration: 0.4,
+        onComplete: () => {
+          document.documentElement.classList.remove("is-loading");
+          intro.style.display = "none";
+          onReady();
+        },
+      });
+      return;
+    }
+
+    gsap.set(intro, { clipPath: "circle(150% at 50% 50%)" });
+    gsap.set(ripple, { scale: 1, opacity: 0.9 });
+
+    gsap.to(ripple, { scale: 26, opacity: 0, duration: 1.1, ease: "power1.out" });
+    gsap.to(intro, {
+      clipPath: "circle(0% at 50% 50%)",
+      duration: 1.1,
+      ease: "power2.inOut",
+      onComplete: () => {
+        document.documentElement.classList.remove("is-loading");
+        intro.style.display = "none";
+        onReady();
+      },
+    });
+  }
+
+  videos.forEach((video, i) => {
+    video.preload = "auto";
+    video.src = chapterEls[i].dataset.src;
+    const markDone = () => { chaptersDone++; maybeReveal(); };
+    video.addEventListener("canplaythrough", markDone, { once: true });
+    video.addEventListener("error", markDone, { once: true });
+    video.load();
+  });
+
+  introVideo.addEventListener("ended", () => { introEnded = true; maybeReveal(); }, { once: true });
+  introVideo.addEventListener("error", () => { introEnded = true; maybeReveal(); }, { once: true });
+  introVideo.play().catch(() => { introEnded = true; maybeReveal(); });
+
+  setTimeout(() => {
+    introEnded = true;
+    chaptersDone = videos.length;
+    maybeReveal();
+  }, 20000);
+}
+
+function initMusicBar() {
+  const audio = document.getElementById("bgAudio");
+  const bar = document.getElementById("musicBar");
+  const playPauseBtn = document.getElementById("playPauseBtn");
+  const muteBtn = document.getElementById("muteBtn");
+
+  audio.addEventListener("play", () => {
+    bar.classList.add("is-playing");
+    playPauseBtn.setAttribute("aria-label", "Pause music");
+  });
+  audio.addEventListener("pause", () => {
+    bar.classList.remove("is-playing");
+    playPauseBtn.setAttribute("aria-label", "Play music");
+  });
+
+  playPauseBtn.addEventListener("click", () => {
+    if (audio.paused) audio.play().catch(() => {});
+    else audio.pause();
+  });
+
+  muteBtn.addEventListener("click", () => {
+    audio.muted = !audio.muted;
+    bar.classList.toggle("is-muted", audio.muted);
+    muteBtn.setAttribute("aria-label", audio.muted ? "Unmute music" : "Mute music");
+  });
+
+  audio.play().catch(() => {
+    const unlock = (event) => {
+      if (event.target.closest && event.target.closest("#musicBar")) return;
+      if (audio.paused) audio.play().catch(() => {});
+      ["pointerdown", "keydown", "wheel", "touchstart"].forEach((type) =>
+        window.removeEventListener(type, unlock)
+      );
+    };
+    ["pointerdown", "keydown", "wheel", "touchstart"].forEach((type) =>
+      window.addEventListener(type, unlock, { once: true, passive: true })
+    );
+  });
+}
+
+document.documentElement.classList.add("is-loading");
+initMusicBar();
+initRsvp();
+initIntro(boot);
