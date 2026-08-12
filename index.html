@@ -9,7 +9,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&family=Noto+Sans+Thai:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
 
 <link rel="stylesheet" href="css/style.css">
 </head>
@@ -97,13 +97,46 @@
       <p class="finale__nickname">Maprang &amp; Nae</p>
     </div>
 
-    <div class="finale__ring-wrap">
-      <div class="finale__card">
-        <div class="finale__qr" id="qrcode" role="img" aria-label="QR code linking to the RSVP form"></div>
+    <!-- daisyUI countdown. Hours/min/sec ride the component's 00-99 sliding
+         strip via --value; days is plain text because it runs past 99. -->
+    <div class="countdown-row" id="countdown">
+      <div class="countdown-cell">
+        <span class="countdown-num" id="cdDays" aria-live="polite">—</span>
+        <span class="countdown-label">days</span>
+      </div>
+      <div class="countdown-cell">
+        <span class="countdown-num countdown">
+          <span id="cdHours" style="--value:0;" aria-live="polite" aria-label="0">0</span>
+        </span>
+        <span class="countdown-label">hours</span>
+      </div>
+      <div class="countdown-cell">
+        <span class="countdown-num countdown">
+          <span id="cdMinutes" style="--value:0;" aria-live="polite" aria-label="0">0</span>
+        </span>
+        <span class="countdown-label">min</span>
+      </div>
+      <div class="countdown-cell">
+        <span class="countdown-num countdown">
+          <span id="cdSeconds" style="--value:0;" aria-live="polite" aria-label="0">0</span>
+        </span>
+        <span class="countdown-label">sec</span>
       </div>
     </div>
 
-    <a class="finale__rsvp" id="rsvpButton" href="#" target="_blank" rel="noopener">RSVP →</a>
+    <!-- Magic UI shimmer button: a conic-gradient spark slides across behind the
+         face and spins as it goes, and an inset backdrop covers all but a hair's
+         width of it, so only a travelling gleam shows around the rim. -->
+    <button class="finale__rsvp shimmer" id="rsvpButton" type="button">
+      <span class="shimmer__track" aria-hidden="true">
+        <span class="shimmer__spark"><span class="shimmer__core"></span></span>
+      </span>
+      <span class="shimmer__backdrop" aria-hidden="true"></span>
+
+      <span class="finale__rsvp-label">RSVP</span>
+      <span class="finale__rsvp-dot" aria-hidden="true">·</span>
+      <span class="finale__rsvp-label">ตอบรับคำเชิญ</span>
+    </button>
 
     <div class="finale__signoff">
       <p class="finale__date">28.11.2026</p>
@@ -113,10 +146,139 @@
 
 </main>
 
+<!-- RSVP drawer. Bottom sheet, mobile-first; every string carries a data-i18n
+     key so js/rsvp.js can swap the whole form between English and Thai. -->
+<div class="drawer is-th" id="rsvpDrawer" lang="th" hidden>
+  <div class="drawer__overlay" id="rsvpOverlay"></div>
+
+  <div class="drawer__sheet" id="rsvpSheet" role="dialog" aria-modal="true"
+       aria-labelledby="rsvpTitle" tabindex="-1">
+
+    <div class="drawer__grip" id="rsvpGrip">
+      <span class="drawer__handle" aria-hidden="true"></span>
+    </div>
+
+    <div class="drawer__lang" role="group" data-i18n-label="lang.group">
+      <button class="drawer__lang-btn is-active" type="button" data-lang="th">ไทย</button>
+      <button class="drawer__lang-btn" type="button" data-lang="en">EN</button>
+    </div>
+
+    <div class="drawer__header">
+      <h2 class="drawer__title" id="rsvpTitle" data-i18n="title">RSVP</h2>
+      <p class="drawer__description" data-i18n="subtitle">
+        We would love to know if you can join us.
+      </p>
+    </div>
+
+    <form class="drawer__form" id="rsvpForm" novalidate>
+      <div class="drawer__body">
+
+        <div class="field">
+          <label class="field__label" for="rsvpName" data-i18n="name.label">Full name</label>
+          <input class="field__input" id="rsvpName" name="name" type="text"
+                 autocomplete="name" enterkeyhint="next" maxlength="80"
+                 data-i18n-placeholder="name.placeholder" placeholder="Your name">
+          <p class="field__error" id="rsvpNameError" role="alert" hidden></p>
+        </div>
+
+        <div class="field" role="radiogroup" aria-labelledby="rsvpSideLabel">
+          <span class="field__label" id="rsvpSideLabel" data-i18n="side.label">Guest of</span>
+          <div class="toggle-group">
+            <label class="toggle">
+              <input class="sr-only" type="radio" name="side" value="Groom">
+              <span class="toggle__box"><span data-i18n="side.groom">Groom</span></span>
+            </label>
+            <label class="toggle">
+              <input class="sr-only" type="radio" name="side" value="Bride">
+              <span class="toggle__box"><span data-i18n="side.bride">Bride</span></span>
+            </label>
+          </div>
+          <p class="field__error" id="rsvpSideError" role="alert" hidden></p>
+        </div>
+
+        <!-- A div + role=radiogroup rather than fieldset/legend: legends inside a
+             flex fieldset lay out inconsistently in iOS Safari. -->
+        <div class="field" role="radiogroup" aria-labelledby="rsvpAttendingLabel">
+          <span class="field__label" id="rsvpAttendingLabel" data-i18n="attending.label">Will you be joining us?</span>
+          <div class="toggle-group">
+            <label class="toggle">
+              <input class="sr-only" type="radio" name="attending" value="Yes">
+              <span class="toggle__box">
+                <span class="toggle__icon" aria-hidden="true">✓</span>
+                <span data-i18n="attending.yes">I&rsquo;ll be there</span>
+              </span>
+            </label>
+            <label class="toggle">
+              <input class="sr-only" type="radio" name="attending" value="No">
+              <span class="toggle__box">
+                <span class="toggle__icon" aria-hidden="true">✕</span>
+                <span data-i18n="attending.no">I can&rsquo;t make it</span>
+              </span>
+            </label>
+          </div>
+          <p class="field__error" id="rsvpAttendingError" role="alert" hidden></p>
+        </div>
+
+        <div class="field" id="rsvpGuestsField" hidden>
+          <label class="field__label" for="rsvpGuests" data-i18n="guests.label">Number of guests</label>
+          <div class="stepper">
+            <button class="stepper__btn" type="button" data-step="-1"
+                    data-i18n-label="guests.less" aria-label="Fewer guests">−</button>
+            <input class="stepper__value" id="rsvpGuests" name="guests" type="text"
+                   inputmode="numeric" readonly value="1">
+            <button class="stepper__btn" type="button" data-step="1"
+                    data-i18n-label="guests.more" aria-label="More guests">+</button>
+          </div>
+          <p class="field__hint" data-i18n="guests.hint">
+            Including yourself — 2 means you plus one guest.
+          </p>
+        </div>
+
+        <div class="field" id="rsvpBringingField" hidden>
+          <label class="field__label" for="rsvpBringing" data-i18n="bringing.label">
+            Who&rsquo;s coming with you <span class="field__optional" data-i18n="bringing.optional">(optional)</span>
+          </label>
+          <textarea class="field__input field__input--area" id="rsvpBringing" name="bringing"
+                    rows="2" maxlength="300" data-i18n-placeholder="bringing.placeholder"
+                    placeholder="e.g. Somchai &amp; Ploy"></textarea>
+          <p class="field__hint" data-i18n="bringing.hint">Names of anyone in your party.</p>
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="rsvpMessage" data-i18n="message.label">
+            Message to the couple <span class="field__optional" data-i18n="message.optional">(optional)</span>
+          </label>
+          <textarea class="field__input field__input--area" id="rsvpMessage" name="message"
+                    rows="3" maxlength="500" data-i18n-placeholder="message.placeholder"
+                    placeholder="Write a few words…"></textarea>
+        </div>
+
+        <p class="drawer__status" id="rsvpStatus" role="alert" hidden></p>
+      </div>
+
+      <div class="drawer__footer">
+        <button class="btn btn--primary" id="rsvpSubmit" type="submit">
+          <span class="btn__spinner" aria-hidden="true"></span>
+          <span class="btn__label" data-i18n="submit">Send RSVP</span>
+        </button>
+        <button class="btn btn--ghost" id="rsvpCancel" type="button" data-i18n="cancel">Cancel</button>
+      </div>
+    </form>
+
+    <div class="drawer__done" id="rsvpDone" hidden>
+      <span class="drawer__check" aria-hidden="true">✓</span>
+      <h3 class="drawer__title" id="rsvpDoneTitle" data-i18n="done.title">Thank you</h3>
+      <p class="drawer__description" id="rsvpDoneText"></p>
+      <button class="btn btn--primary" id="rsvpClose" type="button" data-i18n="done.close">Close</button>
+    </div>
+
+  </div>
+</div>
+
 <script src="js/vendor/gsap.min.js"></script>
 <script src="js/vendor/ScrollTrigger.min.js"></script>
-<script src="js/vendor/qrcode.min.js"></script>
 
+<script src="js/rsvp.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

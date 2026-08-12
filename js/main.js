@@ -1,7 +1,9 @@
 gsap.registerPlugin(ScrollTrigger);
 
 const CONFIG = {
-  RSVP_URL: "https://forms.gle/REPLACE_WITH_REAL_FORM_LINK",
+  // Ceremony start, Asia/Bangkok (+07:00). Set the real hour here — the
+  // countdown lands on midnight until it's known.
+  WEDDING_AT: "2026-11-28T00:00:00+07:00",
   CHAPTER_OVERLAP: 0.175,
   LAST_CHAPTER_HOLD: 0.75, // extra scroll (in chapter-units) the last chapter lingers on its final frame before fading to ink — roughly +3s of scrolling
   SCRUB_SMOOTHING: 0.3,
@@ -214,7 +216,7 @@ function initScrollCue(animate) {
 function initFinaleReveal() {
   const targets = [
     document.querySelector(".finale__intro"),
-    document.querySelector(".finale__ring-wrap"),
+    document.getElementById("countdown"),
     document.getElementById("rsvpButton"),
     document.querySelector(".finale__signoff"),
   ];
@@ -231,24 +233,6 @@ function initFinaleReveal() {
   }).to(targets, { autoAlpha: 1, y: 0, stagger: 0.15, ease: "power1.out" });
 
   return () => tl.scrollTrigger.kill();
-}
-
-function initRsvp() {
-  document.getElementById("rsvpButton").href = CONFIG.RSVP_URL;
-
-  if (!window.QRCode) return;
-  const host = document.getElementById("qrcode");
-  const canvas = document.createElement("canvas");
-  host.appendChild(canvas);
-  QRCode.toCanvas(canvas, CONFIG.RSVP_URL, {
-    width: 400,
-    margin: 1,
-    color: { dark: "#161d18", light: "#f4ecdd" },
-  }, (err) => {
-    if (err) { console.error("QR render failed:", err); return; }
-    canvas.style.width = "100%";
-    canvas.style.height = "100%";
-  });
 }
 
 function boot() {
@@ -382,6 +366,36 @@ function initIntro(onReady) {
   }, 20000);
 }
 
+function initCountdown() {
+  const days = document.getElementById("cdDays");
+  const cells = [
+    { el: document.getElementById("cdHours"), unit: 3600 },
+    { el: document.getElementById("cdMinutes"), unit: 60 },
+    { el: document.getElementById("cdSeconds"), unit: 1 },
+  ];
+
+  const target = new Date(CONFIG.WEDDING_AT).getTime();
+  let timer = null;
+
+  function tick() {
+    const left = Math.max(0, Math.floor((target - Date.now()) / 1000));
+
+    days.textContent = Math.floor(left / 86400);
+    cells.forEach(({ el, unit }) => {
+      // 24 hours / 60 minutes / 60 seconds — each cell holds only its own slice.
+      const value = Math.floor(left / unit) % (unit === 3600 ? 24 : 60);
+      el.style.setProperty("--value", value);
+      el.textContent = value;
+      el.setAttribute("aria-label", value);
+    });
+
+    if (left === 0 && timer) clearInterval(timer);
+  }
+
+  tick();
+  timer = setInterval(tick, 1000);
+}
+
 function initMusicBar() {
   const audio = document.getElementById("bgAudio");
   const bar = document.getElementById("musicBar");
@@ -424,5 +438,5 @@ function initMusicBar() {
 
 document.documentElement.classList.add("is-loading");
 initMusicBar();
-initRsvp();
+initCountdown();
 initIntro(boot);
