@@ -380,7 +380,9 @@ function initCountdown() {
   function tick() {
     const left = Math.max(0, Math.floor((target - Date.now()) / 1000));
 
-    days.textContent = Math.floor(left / 86400);
+    // Padded to two digits so the days cell matches the zero-padded strip cells
+    // beside it; it still grows to three on its own when there's that long to go.
+    days.textContent = String(Math.floor(left / 86400)).padStart(2, "0");
     cells.forEach(({ el, unit }) => {
       // 24 hours / 60 minutes / 60 seconds — each cell holds only its own slice.
       const value = Math.floor(left / unit) % (unit === 3600 ? 24 : 60);

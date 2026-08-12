@@ -20,7 +20,11 @@
       title: "RSVP",
       subtitle: "We would love to know if you can join us.",
       lang: { group: "Language" },
-      name: { label: "Full name", placeholder: "Your name" },
+      name: {
+        label: "Full name",
+        nickname: "(a nickname is fine)",
+        placeholder: "Your name",
+      },
       side: { label: "Guest of", groom: "Groom", bride: "Bride" },
       attending: {
         label: "Will you be joining us?",
@@ -64,7 +68,11 @@
       title: "ตอบรับคำเชิญ",
       subtitle: "บอกให้เราทราบหน่อยว่าคุณมาร่วมงานได้ไหม",
       lang: { group: "ภาษา" },
-      name: { label: "ชื่อ-นามสกุล", placeholder: "ชื่อของคุณ" },
+      name: {
+        label: "ชื่อ-นามสกุล",
+        nickname: "(ชื่อเล่นก็ได้)",
+        placeholder: "ชื่อของคุณ",
+      },
       side: { label: "แขกของฝ่าย", groom: "เจ้าบ่าว", bride: "เจ้าสาว" },
       attending: {
         label: "คุณจะมาร่วมงานไหม",
