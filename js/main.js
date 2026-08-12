@@ -7,12 +7,11 @@ const CONFIG = {
   SCRUB_SMOOTHING: 0.3,
   FADE_TO_INK_START: 0.72,
   SCROLL_CUE_SHOW_DELAY: 500,
-  SCROLL_CUE_MIN_VISIBLE: 4000,
 };
 
 const clamp = gsap.utils.clamp(0, 1);
 
-function initChapters(onScrollStart) {
+function initChapters() {
   const chapterEls = Array.from(document.querySelectorAll(".chapter"));
   const fadeToInk = document.getElementById("chaptersFadeToInk");
   const N = chapterEls.length;
@@ -78,8 +77,6 @@ function initChapters(onScrollStart) {
   function render(progress) {
     const p = progress * TOTAL_UNITS;
 
-    if (progress > 0.001 && onScrollStart) { onScrollStart(); onScrollStart = null; }
-
     chapters.forEach((c, i) => {
       const localProgress = clamp(p - boundaries[i]);
       if (c.duration > 0) {
@@ -117,7 +114,7 @@ function initChapters(onScrollStart) {
   return () => trigger.kill();
 }
 
-function initChaptersStatic(onScrollStart) {
+function initChaptersStatic() {
   const chapterEls = Array.from(document.querySelectorAll(".chapter"));
   const fadeToInk = document.getElementById("chaptersFadeToInk");
   const N = chapterEls.length;
@@ -159,7 +156,6 @@ function initChaptersStatic(onScrollStart) {
     fastScrollEnd: true,
     scrub: CONFIG.SCRUB_SMOOTHING,
     onUpdate: (self) => {
-      if (self.progress > 0.001 && onScrollStart) { onScrollStart(); onScrollStart = null; }
       const p = self.progress * TOTAL_UNITS;
       chapterEls.forEach((el, i) => { el.style.opacity = opacityFor(i, p); });
       fadeToInk.style.opacity = fadeToInkFor(p);
@@ -171,45 +167,47 @@ function initChaptersStatic(onScrollStart) {
 
 function initScrollCue(animate) {
   const cue = document.getElementById("scrollCue");
-  let dismissed = false;
-  let shownAt = 0;
-  let minVisibleTimer = null;
+  let revealed = false;
+  let atFinale = false;
 
-  const reallyDismiss = () => {
-    dismissed = true;
-    cue.classList.remove("is-visible");
-  };
-
-  const dismiss = () => {
-    if (dismissed || minVisibleTimer) return;
-    const remaining = CONFIG.SCROLL_CUE_MIN_VISIBLE - (Date.now() - shownAt);
-    if (remaining > 0) minVisibleTimer = setTimeout(reallyDismiss, remaining);
-    else reallyDismiss();
-  };
+  const sync = () => cue.classList.toggle("is-visible", revealed && !atFinale);
 
   const showTimer = setTimeout(() => {
-    if (!dismissed) {
-      cue.classList.add("is-visible");
-      shownAt = Date.now();
-    }
+    revealed = true;
+    sync();
   }, CONFIG.SCROLL_CUE_SHOW_DELAY);
 
-  let bounce = null;
+  // The cue stays put for the whole journey instead of dismissing on first
+  // scroll — the chapters run long, and "scroll till the end" only works as a
+  // promise if it is still there. It steps aside once the finale is in view,
+  // where it would collide with the RSVP card and the journey is actually over.
+  const finaleTrigger = ScrollTrigger.create({
+    trigger: "#finale",
+    start: "top 80%",
+    onEnter: () => { atFinale = true; sync(); },
+    onLeaveBack: () => { atFinale = false; sync(); },
+  });
+
+  const tweens = [];
   if (animate) {
-    bounce = gsap.fromTo(
+    tweens.push(gsap.fromTo(
       ".scroll-cue__dot",
       { y: 0, autoAlpha: 1 },
-      { y: 14, autoAlpha: 0, duration: 1, repeat: -1, repeatDelay: 0.3, ease: "power1.in" }
-    );
+      { y: -14, autoAlpha: 0, duration: 1, repeat: -1, repeatDelay: 0.3, ease: "power1.in" }
+    ));
+    tweens.push(gsap.to(".scroll-cue__chevron", {
+      y: 5,
+      duration: 0.9,
+      repeat: -1,
+      yoyo: true,
+      ease: "sine.inOut",
+    }));
   }
 
-  return {
-    dismiss,
-    destroy: () => {
-      clearTimeout(showTimer);
-      clearTimeout(minVisibleTimer);
-      if (bounce) bounce.kill();
-    },
+  return () => {
+    clearTimeout(showTimer);
+    finaleTrigger.kill();
+    tweens.forEach((t) => t.kill());
   };
 }
 
@@ -259,24 +257,24 @@ function boot() {
   const mm = gsap.matchMedia();
 
   mm.add("(prefers-reduced-motion: no-preference)", () => {
-    const cue = initScrollCue(true);
-    const cleanupChapters = initChapters(cue.dismiss);
+    const cleanupChapters = initChapters();
+    const cleanupCue = initScrollCue(true);
     const cleanupReveal = initFinaleReveal();
 
     return () => {
       cleanupChapters();
-      cue.destroy();
+      cleanupCue();
       cleanupReveal();
     };
   });
 
   mm.add("(prefers-reduced-motion: reduce)", () => {
-    const cue = initScrollCue(false);
-    const cleanupChapters = initChaptersStatic(cue.dismiss);
+    const cleanupChapters = initChaptersStatic();
+    const cleanupCue = initScrollCue(false);
 
     return () => {
       cleanupChapters();
-      cue.destroy();
+      cleanupCue();
     };
   });
 
