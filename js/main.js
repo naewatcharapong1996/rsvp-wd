@@ -9,6 +9,16 @@ const CONFIG = {
   SCRUB_SMOOTHING: 0.3,
   FADE_TO_INK_START: 0.72,
   SCROLL_CUE_SHOW_DELAY: 500,
+  // Hard cap on the loading screen: past this we start with whatever buffered,
+  // so a wedged CDN can never leave a guest on the loader forever.
+  PRELOAD_TIMEOUT: 25000,
+  PRELOAD_SLOW_NOTICE: 9000,
+  // No timeupdate for this long once the intro is playing means the decoder is
+  // wedged, not that the film is slow — move on rather than hold a dead frame.
+  INTRO_STALL_TIMEOUT: 8000,
+  // Relative shares of the loading bar. Roughly tracks the file sizes so the
+  // bar moves at an honest pace instead of jumping per-asset.
+  PRELOAD_WEIGHTS: { intro: 0.3, chapter0: 0.24, chapter1: 0.41, fonts: 0.05 },
 };
 
 const clamp = gsap.utils.clamp(0, 1);
@@ -274,15 +284,9 @@ function initIntro(onReady) {
   const tap = document.getElementById("introTap");
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  const chapterEls = [
-    document.querySelector('.chapter[data-chapter="0"]'),
-    document.querySelector('.chapter[data-chapter="1"]'),
-  ];
-  const videos = chapterEls.map((el) => el.querySelector(".chapter__video"));
-
   let settled = false;
-  let introEnded = false;
-  let chaptersDone = 0;
+  let started = false;
+  let stallTimer = null;
 
   const tapBounce = reduceMotion ? null : gsap.to(tap, {
     y: -12,
@@ -292,13 +296,10 @@ function initIntro(onReady) {
     ease: "sine.inOut",
   });
 
-  function maybeReveal() {
-    if (settled || !introEnded || chaptersDone < videos.length) return;
-    reveal();
-  }
-
   function reveal() {
+    if (settled) return;
     settled = true;
+    clearTimeout(stallTimer);
 
     if (tapBounce) tapBounce.kill();
     gsap.to(tap, { autoAlpha: 0, duration: 0.35 });
@@ -332,38 +333,199 @@ function initIntro(onReady) {
     });
   }
 
-  let chapterPreloadStarted = false;
-  function startChapterPreload() {
-    if (chapterPreloadStarted) return;
-    chapterPreloadStarted = true;
-    videos.forEach((video) => {
-      video.preload = "auto";
-      video.load();
-    });
+  // Rearmed on every timeupdate, so it only ever fires when playback has
+  // genuinely stopped advancing. Inert until the film is actually on screen, so
+  // the autoplay probe below can't arm it.
+  function armStallWatch() {
+    if (!started) return;
+    clearTimeout(stallTimer);
+    stallTimer = setTimeout(reveal, CONFIG.INTRO_STALL_TIMEOUT);
   }
 
-  videos.forEach((video, i) => {
-    video.preload = "metadata";
-    video.src = chapterEls[i].dataset.src;
-    const markDone = () => { chaptersDone++; maybeReveal(); };
-    video.addEventListener("canplaythrough", markDone, { once: true });
-    video.addEventListener("error", markDone, { once: true });
+  introVideo.addEventListener("ended", reveal);
+  introVideo.addEventListener("timeupdate", armStallWatch);
+  // Only once the film is on screen: an error before that is the preloader's to
+  // handle, and must not fire the transition while the loader still covers it.
+  introVideo.addEventListener("error", () => { if (started) reveal(); });
+
+  return {
+    // Muted-autoplay probe, run under cover of the loader. iOS in Low Power Mode
+    // refuses to autoplay video at all (and won't prebuffer either), so we find
+    // that out in the first moment rather than after the loader times out —
+    // play, then rewind before a frame of the film has been spent.
+    async probe() {
+      try {
+        await introVideo.play();
+      } catch (err) {
+        return false;
+      }
+      // On a slow connection this can resolve after the real start(); pausing
+      // then would freeze the film the guest is already watching.
+      if (!started) {
+        introVideo.pause();
+        introVideo.currentTime = 0;
+      }
+      return true;
+    },
+
+    // Called by the preloader once everything is buffered. Returns what actually
+    // happened, so a blocked autoplay can ask for a tap instead of being
+    // mistaken for a finished intro.
+    async start() {
+      if (introVideo.error) return "unavailable";
+      try {
+        await introVideo.play();
+      } catch (err) {
+        return "blocked";
+      }
+      started = true;
+      armStallWatch();
+      return "playing";
+    },
+    // Straight to the circle transition — the intro film is unplayable here.
+    skip: reveal,
+  };
+}
+
+/* Waits for the intro film, the first two chapters and the webfonts before
+   anything starts. The intro is then started while this screen still covers it,
+   so the guest only ever sees the film from its first frame. */
+function initPreloader(introCtl) {
+  const el = document.getElementById("preloader");
+  const bar = document.getElementById("preloaderBar");
+  const pctEl = document.getElementById("preloaderPct");
+  const hint = document.getElementById("preloaderHint");
+  const startBtn = document.getElementById("preloaderStart");
+
+  const W = CONFIG.PRELOAD_WEIGHTS;
+  const items = [];
+  let phase = "loading";
+  let shown = 0;
+  // Declared up front: with a warm cache the assets can be ready inside
+  // addVideo(), which reaches begin() before these are wired up below.
+  let poll = null;
+  let slowNotice = null;
+  let cap = null;
+
+  function bufferedRatio(video) {
+    const d = video.duration;
+    if (!d || !isFinite(d)) return 0;
+    let end = 0;
+    for (let i = 0; i < video.buffered.length; i++) {
+      end = Math.max(end, video.buffered.end(i));
+    }
+    return Math.min(1, end / d);
+  }
+
+  function addVideo(video, src, weight) {
+    const item = { weight, done: false, read: () => (item.done ? 1 : bufferedRatio(video)) };
+    items.push(item);
+
+    const finish = () => { item.done = true; update(); };
+    // A broken asset resolves too: it must not hang the loader. The intro's own
+    // error path is handled separately, where it can be told apart from a skip.
+    if (video.readyState >= 4) finish();
+    else {
+      video.addEventListener("canplaythrough", finish, { once: true });
+      video.addEventListener("error", finish, { once: true });
+    }
+
+    const hadSrc = !!video.getAttribute("src");
+    if (!hadSrc && src) video.setAttribute("src", src);
+    video.preload = "auto";
+    // load() rewinds the network state, so only nudge a video that hasn't begun.
+    if (!hadSrc || video.readyState === 0) video.load();
+  }
+
+  function update() {
+    if (phase !== "loading") return;
+
+    const total = items.reduce((sum, it) => sum + it.weight, 0);
+    const real = items.reduce((sum, it) => sum + it.weight * it.read(), 0) / total;
+
+    // Monotonic: buffered ranges can shrink when the browser evicts data, and a
+    // bar that walks backwards reads as a stall.
+    shown = Math.max(shown, real);
+    bar.style.transform = `scaleX(${shown})`;
+    pctEl.textContent = `${Math.round(shown * 100)}%`;
+
+    if (items.every((it) => it.done)) begin();
+  }
+
+  async function begin() {
+    if (phase !== "loading" && phase !== "waiting-tap") return;
+    phase = "starting";
+    clearInterval(poll);
+    clearTimeout(slowNotice);
+    clearTimeout(cap);
+
+    bar.style.transform = "scaleX(1)";
+    pctEl.textContent = "100%";
+
+    const state = await introCtl.start();
+
+    if (state === "blocked") {
+      // Autoplay refused. Ask for the tap the intro already hints at — this is
+      // the case that used to silently skip the film.
+      phase = "waiting-tap";
+      hint.hidden = true;
+      offerTap();
+      return;
+    }
+
+    phase = "done";
+    startBtn.hidden = true;
+    gsap.to(el, {
+      autoAlpha: 0,
+      duration: 0.5,
+      onComplete: () => { el.hidden = true; },
+    });
+    if (state === "unavailable") introCtl.skip();
+  }
+
+  function offerTap() {
+    startBtn.hidden = false;
+    startBtn.focus();
+  }
+
+  const intro = document.getElementById("introVideo");
+  addVideo(intro, intro.getAttribute("src"), W.intro);
+  [0, 1].forEach((i) => {
+    const chapter = document.querySelector(`.chapter[data-chapter="${i}"]`);
+    addVideo(chapter.querySelector(".chapter__video"), chapter.dataset.src,
+             i === 0 ? W.chapter0 : W.chapter1);
   });
 
-  // Wait until the intro video is actually decoding before competing with it
-  // for bandwidth/decode resources — on lower-memory devices, loading three
-  // full videos at once can stall or error out the intro itself.
-  introVideo.addEventListener("playing", startChapterPreload, { once: true });
-  introVideo.addEventListener("ended", () => { introEnded = true; maybeReveal(); }, { once: true });
-  introVideo.addEventListener("error", () => { introEnded = true; startChapterPreload(); maybeReveal(); }, { once: true });
-  introVideo.play().catch(() => { introEnded = true; startChapterPreload(); maybeReveal(); });
+  const fonts = { weight: W.fonts, done: false, read: () => (fonts.done ? 1 : 0) };
+  items.push(fonts);
+  const fontsReady = document.fonts && document.fonts.ready
+    ? document.fonts.ready
+    : Promise.resolve();
+  fontsReady.then(() => { fonts.done = true; update(); },
+                  () => { fonts.done = true; update(); });
 
-  setTimeout(() => {
-    introEnded = true;
-    startChapterPreload();
-    chaptersDone = videos.length;
-    maybeReveal();
-  }, 20000);
+  startBtn.addEventListener("click", begin);
+
+  // Low Power Mode also declines to prebuffer, so the bar would crawl and then
+  // ask for a tap 25s later. Surface the tap the moment autoplay is refused and
+  // let it start the film straight away — begin() runs from the loading phase
+  // too, and the film streams from there.
+  introCtl.probe().then((allowed) => {
+    if (!allowed && phase === "loading") {
+      hint.textContent = "Ready when you are · พร้อมแล้ว";
+      offerTap();
+    }
+  });
+
+  // Polled rather than event-driven: `progress` fires unevenly across browsers,
+  // and this is what keeps the bar moving between canplaythrough events.
+  poll = setInterval(update, 200);
+  slowNotice = setTimeout(() => {
+    if (phase === "loading") hint.textContent = "Still loading · ยังโหลดอยู่";
+  }, CONFIG.PRELOAD_SLOW_NOTICE);
+  cap = setTimeout(() => { if (phase === "loading") begin(); }, CONFIG.PRELOAD_TIMEOUT);
+
+  update();
 }
 
 function initCountdown() {
@@ -441,4 +603,4 @@ function initMusicBar() {
 document.documentElement.classList.add("is-loading");
 initMusicBar();
 initCountdown();
-initIntro(boot);
+initPreloader(initIntro(boot));

@@ -15,6 +15,25 @@
 </head>
 <body>
 
+<!-- Preloader. Nothing starts until the intro film and the first two chapters are
+     buffered, so the intro can never be skipped by a video that wasn't ready. -->
+<div class="preloader" id="preloader">
+  <p class="preloader__names">Maprang &amp; Nae</p>
+
+  <div class="preloader__meter">
+    <span class="preloader__track" aria-hidden="true">
+      <span class="preloader__bar" id="preloaderBar"></span>
+    </span>
+    <span class="preloader__pct" id="preloaderPct" role="status">0%</span>
+  </div>
+
+  <p class="preloader__hint" id="preloaderHint">Loading &middot; กำลังโหลด</p>
+
+  <button class="preloader__start" id="preloaderStart" type="button" hidden>
+    Tap to begin &middot; แตะเพื่อเริ่ม
+  </button>
+</div>
+
 <div class="intro" id="intro">
   <video class="intro__video" id="introVideo" muted playsinline preload="auto"
          src="asset/Wedding_Scene_Illustration_FpmOyCY3.mp4"></video>
