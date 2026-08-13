@@ -9,16 +9,15 @@ const CONFIG = {
   SCRUB_SMOOTHING: 0.3,
   FADE_TO_INK_START: 0.72,
   SCROLL_CUE_SHOW_DELAY: 500,
-  // Hard cap on the loading screen: past this we start with whatever buffered,
-  // so a wedged CDN can never leave a guest on the loader forever.
-  PRELOAD_TIMEOUT: 25000,
-  PRELOAD_SLOW_NOTICE: 9000,
+  // How long the start screen holds after a tap, waiting for the film to reach a
+  // moving frame. Past this we uncover anyway rather than sit on a dead gate.
+  INTRO_START_TIMEOUT: 8000,
   // No timeupdate for this long once the intro is playing means the decoder is
   // wedged, not that the film is slow — move on rather than hold a dead frame.
   INTRO_STALL_TIMEOUT: 8000,
-  // Relative shares of the loading bar. Roughly tracks the file sizes so the
-  // bar moves at an honest pace instead of jumping per-asset.
-  PRELOAD_WEIGHTS: { intro: 0.3, chapter0: 0.24, chapter1: 0.41, fonts: 0.05 },
+  // Shown only if the tap takes longer than this to produce a frame, so a quick
+  // start doesn't flash a message on its way past.
+  WAITING_NOTICE_DELAY: 400,
 };
 
 const clamp = gsap.utils.clamp(0, 1);
@@ -335,7 +334,7 @@ function initIntro(onReady) {
 
   // Rearmed on every timeupdate, so it only ever fires when playback has
   // genuinely stopped advancing. Inert until the film is actually on screen, so
-  // the autoplay probe below can't arm it.
+  // it can't fire while we're still waiting behind the start gate.
   function armStallWatch() {
     if (!started) return;
     clearTimeout(stallTimer);
@@ -348,36 +347,55 @@ function initIntro(onReady) {
   // handle, and must not fire the transition while the loader still covers it.
   introVideo.addEventListener("error", () => { if (started) reveal(); });
 
-  return {
-    // Muted-autoplay probe, run under cover of the loader. iOS in Low Power Mode
-    // refuses to autoplay video at all (and won't prebuffer either), so we find
-    // that out in the first moment rather than after the loader times out —
-    // play, then rewind before a frame of the film has been spent.
-    async probe() {
-      try {
-        await introVideo.play();
-      } catch (err) {
-        return false;
-      }
-      // On a slow connection this can resolve after the real start(); pausing
-      // then would freeze the film the guest is already watching.
-      if (!started) {
-        introVideo.pause();
-        introVideo.currentTime = 0;
-      }
-      return true;
-    },
+  // Resolves once frames are genuinely advancing, so the start screen can stay
+  // put through a slow first buffer instead of uncovering a frozen first frame.
+  function whenMoving() {
+    if (!introVideo.paused && introVideo.currentTime > 0) return Promise.resolve("playing");
 
-    // Called by the preloader once everything is buffered. Returns what actually
-    // happened, so a blocked autoplay can ask for a tap instead of being
-    // mistaken for a finished intro.
+    return new Promise((resolve) => {
+      const settle = (state) => {
+        introVideo.removeEventListener("playing", onPlaying);
+        introVideo.removeEventListener("timeupdate", onTime);
+        introVideo.removeEventListener("error", onError);
+        clearTimeout(waitCap);
+        resolve(state);
+      };
+      const onPlaying = () => settle("playing");
+      const onTime = () => { if (introVideo.currentTime > 0) settle("playing"); };
+      const onError = () => settle("unavailable");
+      const waitCap = setTimeout(() => settle("playing"), CONFIG.INTRO_START_TIMEOUT);
+
+      introVideo.addEventListener("playing", onPlaying);
+      introVideo.addEventListener("timeupdate", onTime);
+      introVideo.addEventListener("error", onError);
+    });
+  }
+
+  return {
+    // MUST be called straight from the tap handler: iOS only honours play() in
+    // the synchronous part of a gesture, so we start the film first and wait for
+    // it to catch up afterwards rather than buffering first and playing later.
     async start() {
       if (introVideo.error) return "unavailable";
+
+      let playing;
       try {
-        await introVideo.play();
+        playing = introVideo.play();
       } catch (err) {
         return "blocked";
       }
+
+      try {
+        await playing;
+      } catch (err) {
+        return "blocked";
+      }
+
+      const state = await whenMoving();
+      if (state === "unavailable") return state;
+
+      // Only now: the stall watchdog must not fire while we're legitimately
+      // waiting on the first buffer, or it would skip the film all over again.
       started = true;
       armStallWatch();
       return "playing";
@@ -387,49 +405,17 @@ function initIntro(onReady) {
   };
 }
 
-/* Waits for the intro film, the first two chapters and the webfonts before
-   anything starts. The intro is then started while this screen still covers it,
-   so the guest only ever sees the film from its first frame. */
-function initPreloader(introCtl) {
+/* The start gate. Videos prime themselves behind it, and the tap both starts the
+   film and stands in for the gesture every mobile browser wants before it will
+   play media — so nothing here rests on autoplay being allowed. */
+function initStartGate(introCtl) {
   const el = document.getElementById("preloader");
-  const bar = document.getElementById("preloaderBar");
-  const pctEl = document.getElementById("preloaderPct");
   const hint = document.getElementById("preloaderHint");
   const startBtn = document.getElementById("preloaderStart");
 
-  const W = CONFIG.PRELOAD_WEIGHTS;
-  const items = [];
-  let phase = "loading";
-  let shown = 0;
-  // Declared up front: with a warm cache the assets can be ready inside
-  // addVideo(), which reaches begin() before these are wired up below.
-  let poll = null;
-  let slowNotice = null;
-  let cap = null;
+  let launching = false;
 
-  function bufferedRatio(video) {
-    const d = video.duration;
-    if (!d || !isFinite(d)) return 0;
-    let end = 0;
-    for (let i = 0; i < video.buffered.length; i++) {
-      end = Math.max(end, video.buffered.end(i));
-    }
-    return Math.min(1, end / d);
-  }
-
-  function addVideo(video, src, weight) {
-    const item = { weight, done: false, read: () => (item.done ? 1 : bufferedRatio(video)) };
-    items.push(item);
-
-    const finish = () => { item.done = true; update(); };
-    // A broken asset resolves too: it must not hang the loader. The intro's own
-    // error path is handled separately, where it can be told apart from a skip.
-    if (video.readyState >= 4) finish();
-    else {
-      video.addEventListener("canplaythrough", finish, { once: true });
-      video.addEventListener("error", finish, { once: true });
-    }
-
+  function prime(video, src) {
     const hadSrc = !!video.getAttribute("src");
     if (!hadSrc && src) video.setAttribute("src", src);
     video.preload = "auto";
@@ -437,94 +423,47 @@ function initPreloader(introCtl) {
     if (!hadSrc || video.readyState === 0) video.load();
   }
 
-  function update() {
-    if (phase !== "loading") return;
+  // The intro carries its own src; the chapters take theirs from data-src. Both
+  // download while the gate is up, so the tap is usually instant — and the
+  // chapters get the film's whole length to finish.
+  prime(document.getElementById("introVideo"));
+  [0, 1].forEach((i) => {
+    const chapter = document.querySelector(`.chapter[data-chapter="${i}"]`);
+    prime(chapter.querySelector(".chapter__video"), chapter.dataset.src);
+  });
 
-    const total = items.reduce((sum, it) => sum + it.weight, 0);
-    const real = items.reduce((sum, it) => sum + it.weight * it.read(), 0) / total;
+  startBtn.addEventListener("click", async () => {
+    if (launching) return;
+    launching = true;
 
-    // Monotonic: buffered ranges can shrink when the browser evicts data, and a
-    // bar that walks backwards reads as a stall.
-    shown = Math.max(shown, real);
-    bar.style.transform = `scaleX(${shown})`;
-    pctEl.textContent = `${Math.round(shown * 100)}%`;
+    // Kicked off before any await, so play() lands inside the gesture.
+    const pending = introCtl.start();
 
-    if (items.every((it) => it.done)) begin();
-  }
+    const notice = setTimeout(() => {
+      startBtn.classList.add("is-waiting");
+      hint.hidden = false;
+    }, CONFIG.WAITING_NOTICE_DELAY);
 
-  async function begin() {
-    if (phase !== "loading" && phase !== "waiting-tap") return;
-    phase = "starting";
-    clearInterval(poll);
-    clearTimeout(slowNotice);
-    clearTimeout(cap);
-
-    bar.style.transform = "scaleX(1)";
-    pctEl.textContent = "100%";
-
-    const state = await introCtl.start();
+    const state = await pending;
+    clearTimeout(notice);
 
     if (state === "blocked") {
-      // Autoplay refused. Ask for the tap the intro already hints at — this is
-      // the case that used to silently skip the film.
-      phase = "waiting-tap";
-      offerTap();
+      // Vanishingly rare from a real tap, but leave the gate usable rather than
+      // strand the guest on a screen whose only control did nothing.
+      launching = false;
+      startBtn.classList.remove("is-waiting");
+      hint.textContent = "Tap again · แตะอีกครั้ง";
+      hint.hidden = false;
       return;
     }
 
-    phase = "done";
-    startBtn.hidden = true;
     gsap.to(el, {
       autoAlpha: 0,
       duration: 0.5,
       onComplete: () => { el.hidden = true; },
     });
     if (state === "unavailable") introCtl.skip();
-  }
-
-  // Reached from both blocked-autoplay paths — the early probe and a refused
-  // start() — so the wording is set here rather than at each call site.
-  function offerTap() {
-    hint.textContent = "Ready to start · พร้อมแล้ว";
-    startBtn.hidden = false;
-    startBtn.focus();
-  }
-
-  const intro = document.getElementById("introVideo");
-  addVideo(intro, intro.getAttribute("src"), W.intro);
-  [0, 1].forEach((i) => {
-    const chapter = document.querySelector(`.chapter[data-chapter="${i}"]`);
-    addVideo(chapter.querySelector(".chapter__video"), chapter.dataset.src,
-             i === 0 ? W.chapter0 : W.chapter1);
   });
-
-  const fonts = { weight: W.fonts, done: false, read: () => (fonts.done ? 1 : 0) };
-  items.push(fonts);
-  const fontsReady = document.fonts && document.fonts.ready
-    ? document.fonts.ready
-    : Promise.resolve();
-  fontsReady.then(() => { fonts.done = true; update(); },
-                  () => { fonts.done = true; update(); });
-
-  startBtn.addEventListener("click", begin);
-
-  // Low Power Mode also declines to prebuffer, so the bar would crawl and then
-  // ask for a tap 25s later. Surface the tap the moment autoplay is refused and
-  // let it start the film straight away — begin() runs from the loading phase
-  // too, and the film streams from there.
-  introCtl.probe().then((allowed) => {
-    if (!allowed && phase === "loading") offerTap();
-  });
-
-  // Polled rather than event-driven: `progress` fires unevenly across browsers,
-  // and this is what keeps the bar moving between canplaythrough events.
-  poll = setInterval(update, 200);
-  slowNotice = setTimeout(() => {
-    if (phase === "loading") hint.textContent = "Almost there · อีกสักครู่";
-  }, CONFIG.PRELOAD_SLOW_NOTICE);
-  cap = setTimeout(() => { if (phase === "loading") begin(); }, CONFIG.PRELOAD_TIMEOUT);
-
-  update();
 }
 
 function initCountdown() {
@@ -602,4 +541,4 @@ function initMusicBar() {
 document.documentElement.classList.add("is-loading");
 initMusicBar();
 initCountdown();
-initPreloader(initIntro(boot));
+initStartGate(initIntro(boot));

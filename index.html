@@ -15,25 +15,21 @@
 </head>
 <body>
 
-<!-- Preloader. Nothing starts until the intro film and the first two chapters are
-     buffered, so the intro can never be skipped by a video that wasn't ready. -->
+<!-- Start gate. The tap is what begins the film: it doubles as the user gesture
+     every mobile browser wants before it will play media, so there is no
+     autoplay to be refused and nothing to skip. The videos prime themselves
+     behind this screen, so by the time anyone taps it is usually instant. -->
 <div class="preloader" id="preloader">
   <p class="preloader__names">Maprang &amp; Nae</p>
 
-  <div class="preloader__meter">
-    <span class="preloader__track" aria-hidden="true">
-      <span class="preloader__bar" id="preloaderBar"></span>
-    </span>
-    <!-- Decorative: the bar beside it says the same thing, and announcing every
-         tick would talk over the hint below, which is the useful one. -->
-    <span class="preloader__pct" id="preloaderPct" aria-hidden="true">0%</span>
-  </div>
-
-  <p class="preloader__hint" id="preloaderHint" role="status">Loading &middot; กำลังโหลด</p>
-
-  <button class="preloader__start" id="preloaderStart" type="button" hidden>
+  <button class="preloader__start" id="preloaderStart" type="button">
     Tap to begin &middot; แตะเพื่อเริ่ม
   </button>
+
+  <!-- Only speaks up if the film needs a moment to catch up after the tap. -->
+  <p class="preloader__hint" id="preloaderHint" role="status" hidden>
+    Almost there &middot; อีกสักครู่
+  </p>
 </div>
 
 <div class="intro" id="intro">

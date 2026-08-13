@@ -81,43 +81,6 @@ html.is-loading body {
   white-space: nowrap;
 }
 
-.preloader__meter {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 22px;
-  width: min(100%, 240px);
-}
-
-.preloader__track {
-  width: 100%;
-  height: 2px;
-  border-radius: 2px;
-  background: rgba(244, 236, 221, 0.14);
-  overflow: hidden;
-}
-
-.preloader__bar {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--gold);
-  /* Driven by transform so the bar never reflows while media is downloading. */
-  transform: scaleX(0);
-  transform-origin: left center;
-  transition: transform 0.35s ease-out;
-}
-
-.preloader__pct {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: 0.14em;
-  font-variant-numeric: tabular-nums;
-  color: var(--cream);
-  opacity: 0.65;
-}
-
 .preloader__hint {
   font-family: "Noto Sans Thai", var(--font-label);
   font-size: 12px;
@@ -133,10 +96,10 @@ html.is-loading body {
   opacity: 0.5;
 }
 
-/* Shown only when the browser refuses to autoplay — the tap is the user gesture
-   that starts the film (and unlocks the music) instead of skipping the intro. */
+/* The one control on the screen: the tap that starts the film and, being a real
+   gesture, unlocks the music with it. */
 .preloader__start {
-  padding: 14px 26px;
+  padding: 16px 30px;
   border: 1px solid rgba(201, 161, 90, 0.5);
   border-radius: 999px;
   background: none;
@@ -153,6 +116,18 @@ html.is-loading body {
 .preloader__start:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px rgba(201, 161, 90, 0.35);
+}
+
+/* Tapped, but the film hasn't reached a playable frame yet. The breathing rim
+   says "working on it" without putting a number on it. */
+.preloader__start.is-waiting {
+  pointer-events: none;
+  animation: preloaderWait 1.6s ease-in-out infinite;
+}
+
+@keyframes preloaderWait {
+  0%, 100% { opacity: 1; border-color: rgba(201, 161, 90, 0.5); }
+  50% { opacity: 0.55; border-color: rgba(201, 161, 90, 0.25); }
 }
 
 .intro {
@@ -485,7 +460,11 @@ html.is-loading body {
   position: fixed;
   right: calc(16px + env(safe-area-inset-right));
   bottom: calc(16px + env(safe-area-inset-bottom));
-  z-index: 30;
+  /* Above the start gate (200) and the intro (100) so the music is always the
+     guest's to silence — the alternative is a guest who can only stop the sound
+     by leaving. Still under the drawer (400), which should cover it when open.
+     Layers: intro 100 · gate 200 · music 300 · drawer 400. */
+  z-index: 300;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -566,7 +545,8 @@ html.is-loading body {
 
   position: fixed;
   inset: 0;
-  z-index: 200;
+  /* Top of the stack — see the layer note on .music-bar. */
+  z-index: 400;
   font-family: var(--font-label);
 }
 .drawer.is-th { font-family: "Noto Sans Thai", var(--font-label); }
@@ -1026,6 +1006,8 @@ html.is-loading body {
   .shimmer__core {
     animation: none !important;
   }
+
+  .preloader__start.is-waiting { animation: none; opacity: 0.6; }
   .shimmer__spark { left: 0; }
   .btn.is-loading .btn__spinner { animation-duration: 2s; }
 }
