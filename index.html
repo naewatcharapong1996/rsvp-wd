@@ -24,10 +24,12 @@
     <span class="preloader__track" aria-hidden="true">
       <span class="preloader__bar" id="preloaderBar"></span>
     </span>
-    <span class="preloader__pct" id="preloaderPct" role="status">0%</span>
+    <!-- Decorative: the bar beside it says the same thing, and announcing every
+         tick would talk over the hint below, which is the useful one. -->
+    <span class="preloader__pct" id="preloaderPct" aria-hidden="true">0%</span>
   </div>
 
-  <p class="preloader__hint" id="preloaderHint">Loading &middot; กำลังโหลด</p>
+  <p class="preloader__hint" id="preloaderHint" role="status">Loading &middot; กำลังโหลด</p>
 
   <button class="preloader__start" id="preloaderStart" type="button" hidden>
     Tap to begin &middot; แตะเพื่อเริ่ม

@@ -64,8 +64,12 @@ html.is-loading body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 26px;
-  padding: 32px;
+  gap: 30px;
+  /* Weighted to the upper half rather than dead centre: the extra bottom
+     padding lifts the whole stack, so the copy sits where the eye lands first
+     and clears the phone's own bottom furniture. */
+  padding: calc(32px + env(safe-area-inset-top)) 32px
+           calc(clamp(90px, 24vh, 210px) + env(safe-area-inset-bottom));
   background: var(--ink);
 }
 
@@ -81,7 +85,7 @@ html.is-loading body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 22px;
   width: min(100%, 240px);
 }
 
@@ -116,13 +120,17 @@ html.is-loading body {
 
 .preloader__hint {
   font-family: "Noto Sans Thai", var(--font-label);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 400;
-  letter-spacing: 0.16em;
+  /* Looser tracking than the site's other labels: the same line carries Thai,
+     and 0.16em there prises the glyph clusters apart. uppercase only touches
+     the English half. */
+  letter-spacing: 0.09em;
+  line-height: 1.6;
   text-transform: uppercase;
   text-align: center;
   color: var(--cream);
-  opacity: 0.45;
+  opacity: 0.5;
 }
 
 /* Shown only when the browser refuses to autoplay — the tap is the user gesture

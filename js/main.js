@@ -468,7 +468,6 @@ function initPreloader(introCtl) {
       // Autoplay refused. Ask for the tap the intro already hints at — this is
       // the case that used to silently skip the film.
       phase = "waiting-tap";
-      hint.hidden = true;
       offerTap();
       return;
     }
@@ -483,7 +482,10 @@ function initPreloader(introCtl) {
     if (state === "unavailable") introCtl.skip();
   }
 
+  // Reached from both blocked-autoplay paths — the early probe and a refused
+  // start() — so the wording is set here rather than at each call site.
   function offerTap() {
+    hint.textContent = "Ready to start · พร้อมแล้ว";
     startBtn.hidden = false;
     startBtn.focus();
   }
@@ -511,17 +513,14 @@ function initPreloader(introCtl) {
   // let it start the film straight away — begin() runs from the loading phase
   // too, and the film streams from there.
   introCtl.probe().then((allowed) => {
-    if (!allowed && phase === "loading") {
-      hint.textContent = "Ready when you are · พร้อมแล้ว";
-      offerTap();
-    }
+    if (!allowed && phase === "loading") offerTap();
   });
 
   // Polled rather than event-driven: `progress` fires unevenly across browsers,
   // and this is what keeps the bar moving between canplaythrough events.
   poll = setInterval(update, 200);
   slowNotice = setTimeout(() => {
-    if (phase === "loading") hint.textContent = "Still loading · ยังโหลดอยู่";
+    if (phase === "loading") hint.textContent = "Almost there · อีกสักครู่";
   }, CONFIG.PRELOAD_SLOW_NOTICE);
   cap = setTimeout(() => { if (phase === "loading") begin(); }, CONFIG.PRELOAD_TIMEOUT);
 
