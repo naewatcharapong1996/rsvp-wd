@@ -22,14 +22,18 @@
 <div class="preloader" id="preloader">
   <p class="preloader__names">Maprang &amp; Nae</p>
 
-  <button class="preloader__start" id="preloaderStart" type="button">
-    Tap to begin &middot; แตะเพื่อเริ่ม
-  </button>
+  <!-- Button and its hint travel together, so the wide gap below the names
+       doesn't also push the hint away from the button it belongs to. -->
+  <div class="preloader__action">
+    <button class="preloader__start" id="preloaderStart" type="button">
+      Tap to begin &middot; แตะเพื่อเริ่ม
+    </button>
 
-  <!-- Only speaks up if the film needs a moment to catch up after the tap. -->
-  <p class="preloader__hint" id="preloaderHint" role="status" hidden>
-    Almost there &middot; อีกสักครู่
-  </p>
+    <!-- Only speaks up if the film needs a moment to catch up after the tap. -->
+    <p class="preloader__hint" id="preloaderHint" role="status" hidden>
+      Almost there &middot; อีกสักครู่
+    </p>
+  </div>
 </div>
 
 <div class="intro" id="intro">

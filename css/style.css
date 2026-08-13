@@ -64,6 +64,8 @@ html.is-loading body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  /* Names to button. Generous on purpose: the monogram gets to stand alone
+     rather than reading as a label on the button. */
   gap: 90px;
   /* Weighted to the upper half rather than dead centre: the extra bottom
      padding lifts the whole stack, so the copy sits where the eye lands first
@@ -79,6 +81,14 @@ html.is-loading body {
   line-height: 1;
   color: var(--gold);
   white-space: nowrap;
+}
+
+/* Keeps the hint tucked under its button, independent of the 90px above. */
+.preloader__action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
 }
 
 .preloader__hint {
