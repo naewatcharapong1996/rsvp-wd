@@ -45,6 +45,47 @@ html, body {
 
 body { min-height: 100vh; }
 
+/* The whole experience is designed as a phone-width column: chapters and the
+   finale (normal in-flow content, so max-width + margin:auto centers them
+   outright) read as a cropped, zoomed-in mess on a wide window otherwise,
+   which is what read as "not smooth" on desktop. Position: fixed overlays
+   (preloader, intro, music bar, drawer) ignore an ancestor's max-width, so
+   each gets its own centering rule below instead — that also keeps them
+   genuinely fixed to the viewport while the page scrolls, rather than
+   drifting with an ancestor. */
+.app {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100vh;
+  background: var(--ink);
+  overflow-x: hidden;
+}
+
+@media (min-width: 481px) {
+  .app {
+    box-shadow: 0 0 80px rgba(0, 0, 0, 0.5);
+  }
+
+  .preloader,
+  .intro {
+    max-width: 480px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .music-bar {
+    right: calc(env(safe-area-inset-right) + 16px + (100vw - 480px) / 2);
+  }
+
+  .drawer__sheet {
+    max-width: 480px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
 a { color: inherit; text-decoration: none; }
 
 html.is-loading,
@@ -170,21 +211,6 @@ html.is-loading body {
   pointer-events: none;
 }
 
-.intro__tap {
-  position: absolute;
-  left: 50%;
-  top: calc(8% + env(safe-area-inset-top));
-  transform: translateX(-50%);
-  font-family: var(--font-label);
-  font-weight: 600;
-  font-size: 14px;
-  letter-spacing: 0.3em;
-  text-transform: uppercase;
-  color: var(--cream);
-  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.45);
-  pointer-events: none;
-}
-
 .scroll-cue {
   position: fixed;
   left: 50%;
@@ -278,6 +304,7 @@ html.is-loading body {
 .chapter__poster--1 { background: radial-gradient(120% 90% at 50% 35%, #262019 0%, var(--ink) 70%); }
 .chapter__poster--2 { background: radial-gradient(120% 90% at 50% 40%, #241d1d 0%, var(--ink) 70%); }
 .chapter__poster--3 { background: radial-gradient(120% 90% at 50% 45%, #1e241f 0%, var(--ink) 70%); }
+.chapter__poster--4 { background: radial-gradient(120% 90% at 50% 40%, #221e17 0%, var(--ink) 70%); }
 .chapter__poster.is-loaded { opacity: 0; }
 
 .chapter__scrim {
@@ -465,6 +492,50 @@ html.is-loading body {
   color: var(--cream);
   opacity: 0.65;
 }
+
+.finale__venue {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 6px 4px;
+  color: var(--gold);
+  text-decoration: none;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+.finale__venue:hover,
+.finale__venue:focus-visible { opacity: 0.8; }
+.finale__venue:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(201, 161, 90, 0.35);
+  border-radius: 6px;
+}
+
+.finale__venue-icon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  fill: currentColor;
+}
+
+.finale__venue-text {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  column-gap: 6px;
+  font-family: "Noto Sans Thai", var(--font-label);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: rgba(201, 161, 90, 0.4);
+}
+
+.finale__venue-sep { opacity: 0.5; }
+.finale__venue-th { opacity: 0.85; }
 
 .music-bar {
   position: fixed;

@@ -5,7 +5,7 @@ const CONFIG = {
   // countdown lands on midnight until it's known.
   WEDDING_AT: "2026-11-28T00:00:00+07:00",
   CHAPTER_OVERLAP: 0.175,
-  LAST_CHAPTER_HOLD: 0.75, // extra scroll (in chapter-units) the last chapter lingers on its final frame before fading to ink — roughly +3s of scrolling
+  LAST_CHAPTER_HOLD: 1.3, // extra scroll (in chapter-units) the last chapter lingers on its final frame before fading to ink — roughly +5s of scrolling, so the invitation card's text has time to be read
   SCRUB_SMOOTHING: 0.3,
   FADE_TO_INK_START: 0.72,
   SCROLL_CUE_SHOW_DELAY: 500,
@@ -89,15 +89,26 @@ function initChapters() {
     const p = progress * TOTAL_UNITS;
 
     chapters.forEach((c, i) => {
-      const localProgress = clamp(p - boundaries[i]);
-      if (c.duration > 0) {
-        const t = localProgress * c.duration;
-        if (Math.abs(c.video.currentTime - t) > 0.01) c.video.currentTime = t;
-      }
-
       const o = opacityFor(i, p);
       c.el.style.opacity = o;
       c.el.classList.toggle("is-active", o > 0.02);
+
+      // Only a chapter that's actually visible needs its frame moved — an
+      // already-attached video that has faded out is still decodable, and
+      // seeking it every scroll tick competes for the same decode budget as
+      // the one on screen. Skipping hidden ones is most of the fix for
+      // scrubbing that's smooth on a phone but drops frames on a bigger,
+      // faster-scrolling desktop window.
+      if (o <= 0 || c.duration <= 0) return;
+
+      const localProgress = clamp(p - boundaries[i]);
+      const t = localProgress * c.duration;
+      // A pending seek queues up if we ask for another before it resolves;
+      // let it finish and pick up the latest target on the next tick instead
+      // of piling up requests the decoder can't keep pace with.
+      if (!c.video.seeking && Math.abs(c.video.currentTime - t) > 0.033) {
+        c.video.currentTime = t;
+      }
     });
 
     fadeToInk.style.opacity = fadeToInkFor(p);
@@ -245,7 +256,13 @@ function initFinaleReveal() {
 }
 
 function boot() {
-  ScrollTrigger.normalizeScroll(true);
+  // Only for touch: it exists to smooth over mobile browsers hiding/showing
+  // their address bar mid-scroll. On desktop it adds its own scroll-physics
+  // layer on top of the mouse wheel for no benefit, which is extra overhead
+  // fighting the video-scrubbing work on every tick.
+  if (window.matchMedia("(pointer: coarse)").matches) {
+    ScrollTrigger.normalizeScroll(true);
+  }
 
   const mm = gsap.matchMedia();
 
@@ -280,28 +297,16 @@ function initIntro(onReady) {
   const intro = document.getElementById("intro");
   const introVideo = document.getElementById("introVideo");
   const ripple = document.getElementById("introRipple");
-  const tap = document.getElementById("introTap");
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   let settled = false;
   let started = false;
   let stallTimer = null;
 
-  const tapBounce = reduceMotion ? null : gsap.to(tap, {
-    y: -12,
-    duration: 0.7,
-    repeat: -1,
-    yoyo: true,
-    ease: "sine.inOut",
-  });
-
   function reveal() {
     if (settled) return;
     settled = true;
     clearTimeout(stallTimer);
-
-    if (tapBounce) tapBounce.kill();
-    gsap.to(tap, { autoAlpha: 0, duration: 0.35 });
 
     if (reduceMotion) {
       gsap.to(intro, {

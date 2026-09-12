@@ -15,6 +15,14 @@
 </head>
 <body>
 
+<!-- Everything lives in this mobile-width column, centered on wider screens, so
+     desktop sees the same portrait video framing and scroll pacing as mobile
+     instead of the chapters stretching edge-to-edge and cropping oddly. The
+     fixed-position overlays inside it (preloader, intro, music bar, drawer)
+     each get their own centering rule in css/style.css, since position: fixed
+     ignores an ancestor's max-width. -->
+<div class="app" id="app">
+
 <!-- Start gate. The tap is what begins the film: it doubles as the user gesture
      every mobile browser wants before it will play media, so there is no
      autoplay to be refused and nothing to skip. The videos prime themselves
@@ -39,7 +47,6 @@
 <div class="intro" id="intro">
   <video class="intro__video" id="introVideo" muted playsinline preload="auto"
          src="asset/Wedding_Scene_Illustration_FpmOyCY3.mp4"></video>
-  <span class="intro__tap" id="introTap">Tap Tap</span>
   <span class="intro__ripple" id="introRipple"></span>
 </div>
 
@@ -108,6 +115,13 @@
         <div class="chapter__scrim"></div>
       </article>
 
+      <article class="chapter" data-chapter="4"
+                data-src="asset/Living_Photo_Clips_A_cream_envelope_is_positioned_above_a_card_with_5dy5L9D2.mp4">
+        <div class="chapter__poster chapter__poster--4" aria-hidden="true"></div>
+        <video class="chapter__video" muted playsinline preload="none"></video>
+        <div class="chapter__scrim"></div>
+      </article>
+
       <div class="chapters__fade-to-ink" id="chaptersFadeToInk" aria-hidden="true"></div>
 
   </section>
@@ -162,6 +176,22 @@
     <div class="finale__signoff">
       <p class="finale__date">28.11.2026</p>
       <p class="finale__formal-names">Wipawa &amp; Watcharapong</p>
+
+      <!-- Venue pin — a plain marker icon plus underline-on-hover is the
+           clickability cue, since this sits on video/photo backdrops where a
+           bordered button would compete with the RSVP button above it. -->
+      <a class="finale__venue" href="https://maps.app.goo.gl/WDeez7JLP2vunvau5"
+         target="_blank" rel="noopener noreferrer"
+         aria-label="Open venue location in Google Maps: Nayhua Cafe Nakhon Nayok">
+        <svg class="finale__venue-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 2C7.86 2 4.5 5.36 4.5 9.5c0 5.25 6.19 11.44 6.46 11.7a1.5 1.5 0 0 0 2.08 0c.27-.26 6.46-6.45 6.46-11.7C19.5 5.36 16.14 2 12 2zm0 10.25a2.75 2.75 0 1 1 0-5.5 2.75 2.75 0 0 1 0 5.5z"/>
+        </svg>
+        <span class="finale__venue-text">
+          <span class="finale__venue-en">Nayhua Cafe Nakhon Nayok</span>
+          <span class="finale__venue-sep" aria-hidden="true">&middot;</span>
+          <span class="finale__venue-th">นายหัวคาเฟ่ นครนายก</span>
+        </span>
+      </a>
     </div>
   </section>
 
@@ -296,6 +326,8 @@
     </div>
 
   </div>
+</div>
+
 </div>
 
 <script src="js/vendor/gsap.min.js"></script>
